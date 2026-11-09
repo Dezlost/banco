@@ -1,0 +1,82 @@
+// Esquema de datos del sistema bancario.
+// Ejecutar `pnpm prisma:migrate` para aplicar cambios y `pnpm prisma:seed` para datos demo.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TipoCuenta {
+  AHORRO
+  CORRIENTE
+}
+
+enum EstadoCuenta {
+  ACTIVA
+  BLOQUEADA
+}
+
+enum TipoTransaccion {
+  DEPOSITO
+  RETIRO
+  TRANSFERENCIA
+}
+
+/// Persona titular de una o más cuentas.
+model Cliente {
+  id           String   @id @default(cuid())
+  nombre       String
+  apellido     String
+  dni          String   @unique
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  cuentas Cuenta[]
+
+  @@map("clientes")
+}
+
+/// Cuenta bancaria perteneciente a un cliente.
+model Cuenta {
+  id           String       @id @default(cuid())
+  numeroCuenta String       @unique
+  tipo         TipoCuenta
+  saldo        Decimal      @default(0) @db.Decimal(14, 2)
+  estado       EstadoCuenta @default(ACTIVA)
+  clienteId    String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  cliente             Cliente       @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  transaccionesOrigen Transaccion[] @relation("CuentaOrigen")
+  transaccionesDestino Transaccion[] @relation("CuentaDestino")
+
+  @@index([clienteId])
+  @@map("cuentas")
+}
+
+/// Registro inmutable de un movimiento monetario.
+model Transaccion {
+  id              String          @id @default(cuid())
+  tipo            TipoTransaccion
+  monto           Decimal         @db.Decimal(14, 2)
+  saldoResultante Decimal         @db.Decimal(14, 2)
+  descripcion     String?
+  cuentaOrigenId  String?
+  cuentaDestinoId String?
+  createdAt       DateTime        @default(now())
+
+  cuentaOrigen  Cuenta? @relation("CuentaOrigen", fields: [cuentaOrigenId], references: [id])
+  cuentaDestino Cuenta? @relation("CuentaDestino", fields: [cuentaDestinoId], references: [id])
+
+  @@index([cuentaOrigenId])
+  @@index([cuentaDestinoId])
+  @@index([createdAt])
+  @@map("transacciones")
+}
